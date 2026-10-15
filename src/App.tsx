@@ -47,7 +47,7 @@ const App = () => (
         <CMSProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
+          <BrowserRouter basename={import.meta.env.BASE_URL}>
             <AnnouncementBanner />
             <ScrollToTop />
             <Suspense fallback={<PageLoader />}>
