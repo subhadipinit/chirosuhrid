@@ -40,6 +40,9 @@ const PageLoader = () => (
   </div>
 );
 
+const rawBase = import.meta.env.BASE_URL;
+const appBasename = rawBase && rawBase !== "/" && rawBase !== "./" ? rawBase : undefined;
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -47,7 +50,7 @@ const App = () => (
         <CMSProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter basename={import.meta.env.BASE_URL}>
+          <BrowserRouter basename={appBasename}>
             <AnnouncementBanner />
             <ScrollToTop />
             <Suspense fallback={<PageLoader />}>

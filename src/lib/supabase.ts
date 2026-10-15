@@ -1,7 +1,11 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+const supabaseUrl =
+  (import.meta.env.VITE_SUPABASE_URL as string | undefined) ||
+  "https://lkugausdmubnluspvpgr.supabase.co";
+const supabaseAnonKey =
+  (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ||
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxrdWdhdXNkbXVibmx1c3B2cGdyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE5NjMwMjcsImV4cCI6MjEwNzUzOTAyN30.rU0KLFJG-QToKaWabca19qqSUK6J6aj7Ucg-sMyPnqc";
 
 export const isSupabaseConfigured = (): boolean => {
   if (!supabaseUrl || !supabaseAnonKey) return false;
