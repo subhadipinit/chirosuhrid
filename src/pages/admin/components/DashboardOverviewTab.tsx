@@ -273,7 +273,9 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({ onNa
                       </span>
                     </div>
                     <p className="text-xs text-slate-500 truncate mt-0.5">
-                      {inq.message || inq.email || inq.phone || "No message body"}
+                      {inq.type === "volunteer"
+                        ? ((inq.data?.note as string) || (inq.message?.replace(/^\[Volunteer Application\].*?Note:\s*/is, "").trim()) || inq.message || "Volunteer application submitted")
+                        : (inq.message?.replace(/^\[Subject:\s*[^\]]+\]\s*/i, "").trim() || inq.email || inq.phone || "No message body")}
                     </p>
                   </div>
 

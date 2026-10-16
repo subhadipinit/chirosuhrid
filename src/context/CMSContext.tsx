@@ -181,6 +181,7 @@ interface CMSContextType {
 
   // Inquiries
   addInquiry: (inquiry: Omit<Inquiry, "id" | "status" | "createdAt">) => Promise<void>;
+  updateInquiry: (id: string, updated: Partial<Inquiry>) => Promise<void>;
   updateInquiryStatus: (id: string, status: Inquiry["status"]) => Promise<void>;
   deleteInquiry: (id: string) => Promise<void>;
 
@@ -979,6 +980,30 @@ export const CMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const updateInquiry = async (id: string, updated: Partial<Inquiry>) => {
+    const updatedList = inquiries.map((i) => (i.id === id ? { ...i, ...updated } : i));
+    setInquiries(updatedList);
+    saveToLocalCache({ inquiries: updatedList });
+
+    if (isCloudConnected && supabase) {
+      try {
+        const payload: Record<string, unknown> = {};
+        if (updated.type !== undefined) payload.type = updated.type;
+        if (updated.name !== undefined) payload.name = updated.name;
+        if (updated.email !== undefined) payload.email = updated.email;
+        if (updated.phone !== undefined) payload.phone = updated.phone;
+        if (updated.message !== undefined) payload.message = updated.message;
+        if (updated.data !== undefined) payload.data = updated.data;
+        if (updated.status !== undefined) payload.status = updated.status;
+
+        await supabase.from("inquiries").update(payload).eq("id", id);
+      } catch (err) {
+        console.warn("Could not update inquiry in Supabase:", err);
+      }
+    }
+    toast.success("Inquiry updated successfully");
+  };
+
   const updateInquiryStatus = async (id: string, status: Inquiry["status"]) => {
     const updatedList = inquiries.map((i) => (i.id === id ? { ...i, status } : i));
     setInquiries(updatedList);
@@ -1366,6 +1391,7 @@ export const CMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteTestimonial,
         updateSiteSettings,
         addInquiry,
+        updateInquiry,
         updateInquiryStatus,
         deleteInquiry,
         exportDataJSON,

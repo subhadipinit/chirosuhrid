@@ -105,17 +105,28 @@ const Volunteer = () => {
     try {
       volunteerSchema.parse(formData);
       
+      const cleanNote = formData.message?.trim() || "";
+      const roleMap: Record<string, string> = {
+        education: "Education Support",
+        health: "Health Camps",
+        livelihood: "Livelihood Support",
+        events: "Events & Outreach",
+      };
+      const roleTitle = roleMap[formData.interest] || formData.interest || "Community Service";
+
       await addInquiry({
         type: "volunteer",
         name: formData.name.trim(),
         email: formData.email.trim(),
         phone: formData.phone.trim(),
-        message: `[Volunteer Application] Location: ${formData.location || "N/A"} | Role Interest: ${formData.interest || "General"} | Availability: ${formData.availability || "Flexible"} | Note: ${formData.message || "None"}`,
+        message: cleanNote ? cleanNote : `Volunteer application for ${roleTitle}`,
         data: {
-          location: formData.location,
+          city: formData.location.trim(),
+          location: formData.location.trim(),
           interest: formData.interest,
+          interestTitle: roleTitle,
           availability: formData.availability,
-          note: formData.message,
+          note: cleanNote,
           appliedAt: new Date().toISOString(),
         },
       });
@@ -309,10 +320,11 @@ const Volunteer = () => {
                         />
                       </div>
                       <div className="space-y-2 group/input">
-                        <Label htmlFor="location" className="text-[10px] font-black uppercase tracking-widest text-secondary/40 group-focus-within/input:text-primary transition-colors">Current City</Label>
+                        <Label htmlFor="city" className="text-[10px] font-black uppercase tracking-widest text-secondary/40 group-focus-within/input:text-primary transition-colors">Current City / Location</Label>
                         <Input
-                          id="location"
+                          id="city"
                           name="location"
+                          autoComplete="address-level2"
                           value={formData.location}
                           onChange={handleChange}
                           placeholder="Kolkata, Medinipur..."
