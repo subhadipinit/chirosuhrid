@@ -117,50 +117,60 @@ const Stories = () => {
               </h2>
             </div>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {otherStories.map((story) => (
-                <div
-                  key={story.id}
-                  id={story.id}
-                  className="group bg-white rounded-huge overflow-hidden border border-secondary/5 hover:shadow-2xl transition-all duration-700 scroll-mt-24 flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="relative aspect-[16/10] overflow-hidden">
-                      <img
-                        src={story.image}
-                        alt={story.title}
-                        className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-1000 group-hover:scale-105"
-                      />
-                      <div className="absolute top-6 left-6">
-                        <span className="px-4 py-2 bg-white/90 backdrop-blur-sm text-[9px] font-black uppercase tracking-widest text-secondary rounded-full">
-                          {story.category}
-                        </span>
+            {stories.length === 0 ? (
+              <div className="text-center py-20 bg-white rounded-huge border border-secondary/5 p-12 max-w-2xl mx-auto shadow-sm">
+                <Heart className="w-10 h-10 text-primary mx-auto mb-4" />
+                <h3 className="text-2xl font-black tracking-tight text-secondary uppercase mb-2">New Stories in Progress</h3>
+                <p className="text-sm font-medium text-secondary/60 leading-relaxed max-w-md mx-auto">
+                  We are documenting authentic transformation narratives and beneficiary updates across our grassroots centers. Check back soon.
+                </p>
+              </div>
+            ) : (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {otherStories.map((story) => (
+                  <div
+                    key={story.id}
+                    id={story.id}
+                    className="group bg-white rounded-huge overflow-hidden border border-secondary/5 hover:shadow-2xl transition-all duration-700 scroll-mt-24 flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="relative aspect-[16/10] overflow-hidden">
+                        <img
+                          src={story.image}
+                          alt={story.title}
+                          className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-1000 group-hover:scale-105"
+                        />
+                        <div className="absolute top-6 left-6">
+                          <span className="px-4 py-2 bg-white/90 backdrop-blur-sm text-[9px] font-black uppercase tracking-widest text-secondary rounded-full">
+                            {story.category}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="p-10">
+                        <h3 className="text-2xl font-black tracking-tightest text-secondary uppercase leading-tight mb-6 group-hover:text-primary transition-colors">
+                          {story.title}
+                        </h3>
+                        <p className="text-secondary/50 font-medium leading-relaxed mb-6 line-clamp-3">
+                          {story.description}
+                        </p>
                       </div>
                     </div>
-                    <div className="p-10">
-                      <h3 className="text-2xl font-black tracking-tightest text-secondary uppercase leading-tight mb-6 group-hover:text-primary transition-colors">
-                        {story.title}
-                      </h3>
-                      <p className="text-secondary/50 font-medium leading-relaxed mb-6 line-clamp-3">
-                        {story.description}
-                      </p>
+                    <div className="px-10 pb-10">
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-[10px] font-black uppercase tracking-[0.2em] gap-3 text-secondary group-hover:text-primary transition-all"
+                        asChild
+                      >
+                        <Link to={`/stories/${story.id}`}>
+                          Read Story{" "}
+                          <ArrowRight size={14} className="group-hover:translate-x-2 transition-transform" />
+                        </Link>
+                      </Button>
                     </div>
                   </div>
-                  <div className="px-10 pb-10">
-                    <Button
-                      variant="link"
-                      className="p-0 h-auto text-[10px] font-black uppercase tracking-[0.2em] gap-3 text-secondary group-hover:text-primary transition-all"
-                      asChild
-                    >
-                      <Link to={`/stories/${story.id}`}>
-                        Read Story{" "}
-                        <ArrowRight size={14} className="group-hover:translate-x-2 transition-transform" />
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </section>
 

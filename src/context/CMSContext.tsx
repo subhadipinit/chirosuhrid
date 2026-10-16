@@ -154,6 +154,8 @@ interface CMSContextType {
   addStory: (story: Omit<Story, "id"> & { id?: string }) => Promise<void>;
   updateStory: (id: string, updated: Partial<Story>) => Promise<void>;
   deleteStory: (id: string) => Promise<void>;
+  clearAllDemoStories: () => Promise<void>;
+  restoreDemoStories: () => Promise<void>;
 
   // Gallery CRUD
   addGalleryImage: (img: GalleryImage) => Promise<void>;
@@ -193,6 +195,8 @@ interface CMSContextType {
 }
 
 const STORAGE_KEY = "suhrid_dynamic_cms_v2";
+const DELETED_STORIES_KEY = "suhrid_deleted_stories_v1";
+const STORIES_MANAGED_KEY = "suhrid_stories_managed_v1";
 
 export const defaultHomepageHero: HomepageHero = {
   title: "Living.",
@@ -361,8 +365,33 @@ export const CMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const isCloudConnected = isSupabaseConfigured();
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
-  // Core State
-  const [stories, setStories] = useState<Story[]>(initialStories);
+  // Track deleted dummy IDs so they never resurrect from initial defaults
+  const [deletedStoryIds, setDeletedStoryIds] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(DELETED_STORIES_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Core State (lazily initialized from local cache to prevent initial flash of deleted dummy stories)
+  const [stories, setStories] = useState<Story[]>(() => {
+    try {
+      const savedData = localStorage.getItem(STORAGE_KEY) || localStorage.getItem("suhrid_dynamic_cms_v1");
+      if (savedData) {
+        const parsed = JSON.parse(savedData);
+        if (Array.isArray(parsed.stories)) {
+          return parsed.stories;
+        }
+      }
+      const rawDeleted = localStorage.getItem(DELETED_STORIES_KEY);
+      const delIds: string[] = rawDeleted ? JSON.parse(rawDeleted) : [];
+      return initialStories.filter((s) => !delIds.includes(s.id));
+    } catch {
+      return initialStories;
+    }
+  });
   const [gallery, setGallery] = useState<GalleryImage[]>(initialGallery);
   const [programs, setPrograms] = useState<Program[]>(initialPrograms);
   const [impactStats, setImpactStats] = useState<DynamicImpactStat[]>(defaultDynamicStats);
@@ -385,19 +414,19 @@ export const CMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const savedData = localStorage.getItem(STORAGE_KEY) || localStorage.getItem("suhrid_dynamic_cms_v1");
       if (savedData) {
         const parsed = JSON.parse(savedData);
-        if (parsed.stories?.length) setStories(parsed.stories);
-        if (parsed.gallery?.length) setGallery(parsed.gallery);
-        if (parsed.programs?.length) setPrograms(parsed.programs);
-        if (parsed.impactStats?.length) setImpactStats(parsed.impactStats);
-        if (parsed.testimonials?.length) setTestimonials(parsed.testimonials);
-        if (parsed.heroSlides?.length) setHeroSlides(parsed.heroSlides);
+        if (Array.isArray(parsed.stories)) setStories(parsed.stories);
+        if (Array.isArray(parsed.gallery)) setGallery(parsed.gallery);
+        if (Array.isArray(parsed.programs)) setPrograms(parsed.programs);
+        if (Array.isArray(parsed.impactStats)) setImpactStats(parsed.impactStats);
+        if (Array.isArray(parsed.testimonials)) setTestimonials(parsed.testimonials);
+        if (Array.isArray(parsed.heroSlides)) setHeroSlides(parsed.heroSlides);
         if (parsed.siteSettings) setSiteSettings({ ...defaultSettings, ...parsed.siteSettings });
-        if (parsed.inquiries?.length) setInquiries(parsed.inquiries);
+        if (Array.isArray(parsed.inquiries)) setInquiries(parsed.inquiries);
 
-        if (parsed.centers?.length) setCenters(parsed.centers);
-        if (parsed.teamMembers?.length) setTeamMembers(parsed.teamMembers);
-        if (parsed.reports?.length) setReports(parsed.reports);
-        if (parsed.events?.length) setEvents(parsed.events);
+        if (Array.isArray(parsed.centers)) setCenters(parsed.centers);
+        if (Array.isArray(parsed.teamMembers)) setTeamMembers(parsed.teamMembers);
+        if (Array.isArray(parsed.reports)) setReports(parsed.reports);
+        if (Array.isArray(parsed.events)) setEvents(parsed.events);
 
         if (parsed.homepageHero && parsed.homepageHero.image) {
           setHomepageHero(parsed.homepageHero);
@@ -460,48 +489,17 @@ export const CMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!isCloudConnected || !supabase) return;
     setIsSyncing(true);
     try {
-      // Fetch Stories
-      const { data: dbStories } = await supabase.from("stories").select("*").order("created_at", { ascending: false });
-      if (dbStories && dbStories.length > 0) {
-        setStories(dbStories);
-      }
-
-      // Fetch Gallery
-      const { data: dbGallery } = await supabase.from("gallery").select("*").order("created_at", { ascending: false });
-      if (dbGallery && dbGallery.length > 0) {
-        setGallery(dbGallery);
-      }
-
-      // Fetch Programs
-      const { data: dbPrograms } = await supabase.from("programs").select("*");
-      if (dbPrograms && dbPrograms.length > 0) {
-        setPrograms(dbPrograms);
-      }
-
-      // Fetch Impact Stats
-      const { data: dbStats } = await supabase.from("impact_stats").select("*").order("order_index", { ascending: true });
-      if (dbStats && dbStats.length > 0) {
-        setImpactStats(dbStats);
-      }
-
-      // Fetch Testimonials
-      const { data: dbTestimonials } = await supabase.from("testimonials").select("*");
-      if (dbTestimonials && dbTestimonials.length > 0) {
-        setTestimonials(dbTestimonials);
-      }
-
-      // Fetch Hero Slides
-      const { data: dbSlides } = await supabase.from("hero_slides").select("*").order("order_index", { ascending: true });
-      if (dbSlides && dbSlides.length > 0) {
-        setHeroSlides(dbSlides);
-      }
-
-      // Fetch Site Settings & Homepage Hero
+      // 3.1 Fetch Site Settings & Homepage Hero first (contains deleted story tracking)
+      let remoteDeletedStories: string[] = deletedStoryIds;
       const { data: dbSettings } = await supabase.from("site_settings").select("*");
       if (dbSettings && dbSettings.length > 0) {
         const mergedSettings = { ...defaultSettings };
         dbSettings.forEach((item) => {
-          if (item.key === "branding_info" && item.value) {
+          if (item.key === "cms_deleted_stories" && Array.isArray(item.value)) {
+            remoteDeletedStories = Array.from(new Set([...deletedStoryIds, ...item.value]));
+            setDeletedStoryIds(remoteDeletedStories);
+            localStorage.setItem(DELETED_STORIES_KEY, JSON.stringify(remoteDeletedStories));
+          } else if (item.key === "branding_info" && item.value) {
             if (item.value.siteName !== undefined) mergedSettings.siteName = item.value.siteName;
             if (item.value.siteLogo !== undefined) mergedSettings.siteLogo = item.value.siteLogo;
             if (item.value.siteTagline !== undefined) mergedSettings.siteTagline = item.value.siteTagline;
@@ -530,6 +528,54 @@ export const CMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         });
         setSiteSettings(mergedSettings);
+      }
+
+      // 3.2 Fetch Stories
+      const { data: dbStories, error: storiesErr } = await supabase.from("stories").select("*").order("created_at", { ascending: false });
+      if (!storiesErr && Array.isArray(dbStories)) {
+        if (dbStories.length > 0) {
+          const filtered = dbStories.filter((s) => !remoteDeletedStories.includes(s.id));
+          setStories(filtered);
+        } else {
+          // If Supabase has 0 stories, check if stories were explicitly managed/deleted
+          const isManaged = remoteDeletedStories.length > 0 || localStorage.getItem(STORIES_MANAGED_KEY) === "true";
+          if (isManaged) {
+            setStories([]);
+          } else {
+            // Fresh unmanaged installation: filter out any deleted dummy stories
+            setStories(initialStories.filter((s) => !remoteDeletedStories.includes(s.id)));
+          }
+        }
+      }
+
+      // 3.3 Fetch Gallery
+      const { data: dbGallery } = await supabase.from("gallery").select("*").order("created_at", { ascending: false });
+      if (dbGallery && dbGallery.length > 0) {
+        setGallery(dbGallery);
+      }
+
+      // 3.4 Fetch Programs
+      const { data: dbPrograms } = await supabase.from("programs").select("*");
+      if (dbPrograms && dbPrograms.length > 0) {
+        setPrograms(dbPrograms);
+      }
+
+      // 3.5 Fetch Impact Stats
+      const { data: dbStats } = await supabase.from("impact_stats").select("*").order("order_index", { ascending: true });
+      if (dbStats && dbStats.length > 0) {
+        setImpactStats(dbStats);
+      }
+
+      // 3.6 Fetch Testimonials
+      const { data: dbTestimonials } = await supabase.from("testimonials").select("*");
+      if (dbTestimonials && dbTestimonials.length > 0) {
+        setTestimonials(dbTestimonials);
+      }
+
+      // 3.7 Fetch Hero Slides
+      const { data: dbSlides } = await supabase.from("hero_slides").select("*").order("order_index", { ascending: true });
+      if (dbSlides && dbSlides.length > 0) {
+        setHeroSlides(dbSlides);
       }
 
       // Fetch Inquiries
@@ -712,13 +758,79 @@ export const CMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteStory = async (id: string) => {
     const updatedList = stories.filter((s) => s.id !== id);
     setStories(updatedList);
+
+    // Track deleted dummy IDs so they never resurrect from initial defaults
+    const newDeletedIds = Array.from(new Set([...deletedStoryIds, id]));
+    setDeletedStoryIds(newDeletedIds);
+    localStorage.setItem(DELETED_STORIES_KEY, JSON.stringify(newDeletedIds));
+    localStorage.setItem(STORIES_MANAGED_KEY, "true");
+
     saveToLocalCache({ stories: updatedList });
 
     if (isCloudConnected && supabase) {
-      const { error } = await supabase.from("stories").delete().eq("id", id);
-      if (error) console.error("Supabase delete story error:", error);
+      try {
+        await supabase.from("stories").delete().eq("id", id);
+        await supabase.from("site_settings").upsert({
+          key: "cms_deleted_stories",
+          value: newDeletedIds,
+        });
+      } catch (err) {
+        console.error("Supabase delete story error:", err);
+      }
     }
     toast.success("Story deleted");
+  };
+
+  const clearAllDemoStories = async () => {
+    const demoIds = ["priya-journey", "lakshmi-relief", "ramesh-entrepreneur", "digital-literacy"];
+    const updatedList = stories.filter((s) => !demoIds.includes(s.id));
+    setStories(updatedList);
+
+    const newDeletedIds = Array.from(new Set([...deletedStoryIds, ...demoIds]));
+    setDeletedStoryIds(newDeletedIds);
+    localStorage.setItem(DELETED_STORIES_KEY, JSON.stringify(newDeletedIds));
+    localStorage.setItem(STORIES_MANAGED_KEY, "true");
+
+    saveToLocalCache({ stories: updatedList });
+
+    if (isCloudConnected && supabase) {
+      try {
+        for (const id of demoIds) {
+          await supabase.from("stories").delete().eq("id", id);
+        }
+        await supabase.from("site_settings").upsert({
+          key: "cms_deleted_stories",
+          value: newDeletedIds,
+        });
+      } catch (err) {
+        console.error("Supabase clear demo stories error:", err);
+      }
+    }
+    toast.success("All sample demo stories removed");
+  };
+
+  const restoreDemoStories = async () => {
+    setDeletedStoryIds([]);
+    localStorage.removeItem(DELETED_STORIES_KEY);
+    localStorage.removeItem(STORIES_MANAGED_KEY);
+
+    const demoIds = ["priya-journey", "lakshmi-relief", "ramesh-entrepreneur", "digital-literacy"];
+    const nonDemo = stories.filter((s) => !demoIds.includes(s.id));
+    const merged = [...initialStories, ...nonDemo];
+    setStories(merged);
+    saveToLocalCache({ stories: merged });
+
+    if (isCloudConnected && supabase) {
+      try {
+        await supabase.from("site_settings").upsert({
+          key: "cms_deleted_stories",
+          value: [],
+        });
+      } catch (err) {
+        console.error("Supabase restore demo stories error:", err);
+      }
+    }
+    toast.success("Demo stories restored");
   };
 
   // ================= GALLERY CRUD =================
@@ -1376,6 +1488,8 @@ export const CMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addStory,
         updateStory,
         deleteStory,
+        clearAllDemoStories,
+        restoreDemoStories,
         addGalleryImage,
         updateGalleryImage,
         deleteGalleryImage,
